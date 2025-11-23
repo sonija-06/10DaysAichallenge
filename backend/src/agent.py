@@ -1,0 +1,140 @@
+import logging
+import json # <-- NEW: For saving the order JSON
+
+from dotenv import load_dotenv
+from livekit.agents import (
+    Agent,
+    AgentSession,
+    JobContext,
+    JobProcess,
+    MetricsCollectedEvent,
+    RoomInputOptions,
+    WorkerOptions,
+    cli,
+    metrics,
+    tokenize,
+    function_tool,  # <-- UNCOMMENT/ADDED
+    RunContext      # <-- UNCOMMENT/ADDED
+)
+from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
+
+logger = logging.getLogger("agent")
+
+load_dotenv(".env.local")
+
+
+class Assistant(Agent):
+    def __init__(self) -> None:
+        super().__init__(
+            instructions="""You are a friendly and efficient barista named 'Kai' for 'Cosmic Coffee'. 
+            Your goal is to take a complete coffee order from the user. You must be polite and enthusiastic. 
+            Only use the `submit_order` tool when all required fields are filled: drinkType, size, milk, extras, and name.
+            If any field is missing, ask a clarifying question to get the missing information.
+            Your responses must be concise and conversational.""", # <-- UPDATED PERSONA
+        )
+
+    @function_tool # <-- NEW: The function tool definition
+    async def submit_order(
+        self,
+        context: RunContext,
+        drinkType: str,
+        size: str,
+        milk: str,
+        extras: list[str],
+        name: str
+    ):
+        """Use this tool ONLY when you have collected all required information to finalize a coffee order.
+        
+        Args:
+            drinkType: The type of coffee drink (e.g., latte, cold brew, cappuccino).
+            size: The size of the drink (small, medium, or large).
+            milk: The type of milk used (e.g., whole, oat, almond, skim).
+            extras: A list of any additional toppings or customizations (e.g., whipped cream, extra shot, vanilla syrup). If none, use 'None'.
+            name: The user's name to place the order under.
+        """
+        
+        order = {
+            "drinkType": drinkType,
+            "size": size,
+            "milk": milk,
+            "extras": extras,
+            "name": name
+        }
+        
+        # Save the order to a JSON file in the project's root directory
+        try:
+            # We use a path relative to where the agent is run (the 'backend' directory)
+            with open("completed_order.json", "w") as f: 
+                json.dump(order, f, indent=4)
+            logger.info(f"Order saved successfully for {name}")
+            return f"Order placed successfully for {name}. One {size} {drinkType} with {milk} and {', '.join(extras)} is ready to be made! What's next?"
+        except Exception as e:
+            logger.error(f"Failed to save order: {e}")
+            return "There was a problem placing your order. Please try again."
+
+
+def prewarm(proc: JobProcess):
+    proc.userdata["vad"] = silero.VAD.load()
+
+
+async def entrypoint(ctx: JobContext):
+    # Logging setup
+    # Add any other context you want in all log entries here
+    ctx.log_context_fields = {
+        "room": ctx.room.name,
+    }
+
+    # Set up a voice AI pipeline using Deepgram, Gemini, and Murf
+    session = AgentSession(
+        # Speech-to-text (STT) is your agent's ears
+        stt=deepgram.STT(model="nova-3"),
+        
+        # A Large Language Model (LLM) is your agent's brain
+        llm=google.LLM(
+                model="gemini-2.5-flash", # <-- UPDATED MODEL
+            ),
+        
+        # Text-to-speech (TTS) is your agent's voice
+        tts=murf.TTS(
+                voice="en-US-matthew", # <-- UPDATED VOICE EXAMPLE
+                style="Conversation",
+                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
+                text_pacing=True
+            ),
+        
+        # VAD and turn detection are used to determine when the user is speaking
+        turn_detection=MultilingualModel(),
+        vad=ctx.proc.userdata["vad"],
+        preemptive_generation=True,
+    )
+
+    # Metrics collection, to measure pipeline performance
+    usage_collector = metrics.UsageCollector()
+
+    @session.on("metrics_collected")
+    def _on_metrics_collected(ev: MetricsCollectedEvent):
+        metrics.log_metrics(ev.metrics)
+        usage_collector.collect(ev.metrics)
+
+    async def log_usage():
+        summary = usage_collector.get_summary()
+        logger.info(f"Usage: {summary}")
+
+    ctx.add_shutdown_callback(log_usage)
+
+    # Start the session, which initializes the voice pipeline
+    await session.start(
+        agent=Assistant(),
+        room=ctx.room,
+        room_input_options=RoomInputOptions(
+            noise_cancellation=noise_cancellation.BVC(),
+        ),
+    )
+
+    # Join the room and connect to the user
+    await ctx.connect()
+
+
+if __name__ == "__main__":
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm))
