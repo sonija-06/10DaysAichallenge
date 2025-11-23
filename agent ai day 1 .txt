@@ -136,7 +136,7 @@ async def entrypoint(ctx: JobContext):
         ),
     )
 
-    # Join the room and connect to the user
+    # Join the room and connect to the user 01
     await ctx.connect()
 
 
