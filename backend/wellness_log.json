@@ -1,0 +1,31 @@
+[
+    {
+        "timestamp": "2025-11-24T15:02:38.963147",
+        "mood": "stressed",
+        "energy": "full",
+        "objectives": [
+            "complete the two day project"
+        ],
+        "summary": "You're feeling stressed with full energy, and your main goal is to complete a two-day project. My advice is to break it down into smaller, more manageable steps for today."
+    },
+    {
+        "timestamp": "2025-11-24T15:05:37.384977",
+        "mood": "stressed",
+        "energy": "low",
+        "objectives": [
+            "finish the big project report",
+            "go for a thirty minute walk"
+        ],
+        "summary": "To manage stress and low energy, break down the project into smaller tasks and consider a shorter walk if a 30-minute one is too much."
+    },
+    {
+        "timestamp": "2025-11-24T15:52:39.555810",
+        "mood": "lazy",
+        "energy": "energetic",
+        "objectives": [
+            "get some sleep",
+            "work on making a video"
+        ],
+        "summary": "Suggested breaking down video work into small, manageable steps after getting some sleep."
+    }
+]

@@ -1,10 +1,7 @@
 {
-    "drinkType": "cold brew",
-    "size": "small",
-    "milk": "whole milk",
-    "extras": [
-        "vanilla syrup",
-        "caramel drizzle"
-    ],
-    "name": "Fatma"
+    "drinkType": "Cold Brew",
+    "size": "Small",
+    "milk": "Almond milk",
+    "extras": [],
+    "name": "Alex"
 }
