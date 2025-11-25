@@ -1,0 +1,23 @@
+[
+  {
+    "id": "variables",
+    "title": "Variables in Programming",
+    "summary": "Variables are like named containers that hold a specific type of data or value, allowing the programmer to reference and manipulate that value throughout the program. This is essential for storing user input, results of calculations, or configuration settings.",
+    "sample_question": "What is the primary function of a variable in any programming language, and why is this concept fundamental?",
+    "prompt_to_teach": "Explain the concept of variables back to me as if I know nothing about programming."
+  },
+  {
+    "id": "loops",
+    "title": "Control Flow: Loops",
+    "summary": "Loops are control flow structures that allow a section of code to be executed repeatedly based on a condition or a sequence. The two main types are the 'for loop' (for known iterations) and the 'while loop' (for conditional, unknown iterations).",
+    "sample_question": "Can you explain the difference between a for loop and a while loop, and give a scenario for each?",
+    "prompt_to_teach": "Take a minute and teach me the concept of loops and their two main types."
+  },
+  {
+    "id": "functions",
+    "title": "Functions",
+    "summary": "Functions are blocks of organized, reusable code that perform a single, related action. They improve modularity, reduce code duplication, and make large programs easier to manage.",
+    "sample_question": "What is the primary benefit of using functions in a large codebase?",
+    "prompt_to_teach": "Teach me what a function is and why every serious programmer uses them."
+  }
+]
