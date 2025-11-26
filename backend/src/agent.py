@@ -4,11 +4,12 @@ import logging
 import json
 import os
 import asyncio
-from typing import Annotated, Literal, Optional
-from dataclasses import dataclass
+from datetime import datetime
+from typing import Annotated, Literal, Optional, List
+from dataclasses import dataclass, asdict
 
-print("🚀 BIOLOGY TUTOR - DAY 4 TUTORIAL")
 
+print("💡 bikeya_agent.py LOADED SUCCESSFULLY!")
 
 from dotenv import load_dotenv
 from pydantic import Field
@@ -32,184 +33,167 @@ logger = logging.getLogger("agent")
 load_dotenv(".env.local")
 
 # ======================================================
-# 📚 KNOWLEDGE BASE (BIOLOGY DATA)
+# 📂 1. KNOWLEDGE BASE (FAQ)
 # ======================================================
 
-# 🆕 Renamed file so it generates fresh data for you
-CONTENT_FILE = "biology_content.json" 
+FAQ_FILE = "store_faq.json"
+LEADS_FILE = "leads_db.json"
 
-# 🧬 NEW BIOLOGY QUESTIONS
-DEFAULT_CONTENT = [
-  {
-    "id": "dna",
-    "title": "DNA",
-    "summary": "DNA (Deoxyribonucleic acid) is the molecule that carries genetic instructions for the development and functioning of all known living organisms. It is shaped like a double helix.",
-    "sample_question": "What is the full form of DNA and what is its structure called?"
-  },
-  {
-    "id": "cell",
-    "title": "The Cell",
-    "summary": "The cell is the basic structural, functional, and biological unit of all known organisms. It is often called the 'building block of life'. Organisms can be single-celled or multicellular.",
-    "sample_question": "What is the main difference between a Prokaryotic cell and a Eukaryotic cell?"
-  },
-  {
-    "id": "nucleus",
-    "title": "Nucleus",
-    "summary": "The nucleus is a membrane-bound organelle found in eukaryotic cells. It contains the cell's chromosomes (DNA) and controls the cell's growth and reproduction.",
-    "sample_question": "Why is the nucleus often referred to as the 'brain' or 'control center' of the cell?"
-  },
-  {
-    "id": "cell_cycle",
-    "title": "Cell Cycle",
-    "summary": "The cell cycle is a series of events that takes place in a cell as it grows and divides. It consists of Interphase (growth) and the Mitotic phase (division).",
-    "sample_question": "In which phase of the cell cycle does the cell spend the most time?"
-  }
+# Default FAQ data for "Bikeya Company Profile"
+DEFAULT_FAQ = [
+    {
+        "question": "What kind of bikes does Bikeya sell?",
+        "answer": "Bikeya specializes in custom-built, high-performance road, gravel, and time trial bikes. We focus on lightweight carbon frames and personalized component selection."
+    },
+    {
+        "question": "How much does a custom bike fitting session cost?",
+        "answer": "Our comprehensive 3D dynamic bike fitting session, essential for all custom orders, is priced at $350. This fee is often waived if you purchase a complete bike package."
+    },
+    {
+        "question": "Do you offer financing or payment plans?",
+        "answer": "Yes, we partner with specialized cycling finance companies to offer 6 and 12-month payment plans, subject to approval."
+    },
+    {
+        "question": "What is the typical lead time for a custom bike?",
+        "answer": "Depending on component availability, a custom Bikeya frame and build takes approximately 8 to 12 weeks from the final fit session to delivery."
+    }
 ]
 
-def load_content():
-    """
-    📖 Checks if biology JSON exists. 
-    If NO: Generates it from DEFAULT_CONTENT.
-    If YES: Loads it.
-    """
+def load_knowledge_base():
+    """Generates FAQ file if missing, then loads it."""
     try:
-        path = os.path.join(os.path.dirname(__file__), CONTENT_FILE)
-        
-        # Check if file exists
+        # Note: We'll generate the new store_faq.json below, but the logic remains the same.
+        path = os.path.join(os.path.dirname(__file__), FAQ_FILE)
         if not os.path.exists(path):
-            print(f"⚠️ {CONTENT_FILE} not found. Generating biology data...")
             with open(path, "w", encoding='utf-8') as f:
-                json.dump(DEFAULT_CONTENT, f, indent=4)
-            print("✅ Biology content file created successfully.")
-            
-        # Read the file
+                json.dump(DEFAULT_FAQ, f, indent=4)
         with open(path, "r", encoding='utf-8') as f:
-            data = json.load(f)
-            return data
-            
+            return json.dumps(json.load(f)) # Return as string for the Prompt
     except Exception as e:
-        print(f"⚠️ Error managing content file: {e}")
-        return []
+        print(f"⚠️ Error loading FAQ: {e}")
+        return ""
 
-# Load data immediately on startup
-COURSE_CONTENT = load_content()
+STORE_FAQ_TEXT = load_knowledge_base()
 
 # ======================================================
-# 🧠 STATE MANAGEMENT
+# 💾 2. LEAD DATA STRUCTURE
 # ======================================================
 
 @dataclass
-class TutorState:
-    """🧠 Tracks the current learning context"""
-    current_topic_id: str | None = None
-    current_topic_data: dict | None = None
-    mode: Literal["learn", "quiz", "teach_back"] = "learn"
+class LeadProfile:
+    name: str | None = None
+    company: str | None = None
+    email: str | None = None
+    role: str | None = None # e.g., 'Amateur Racer', 'Weekend Rider'
+    use_case: str | None = None # e.g., 'Custom Road Bike', 'Gravel Setup', 'Coaching'
+    team_size: str | None = None # e.g., 'Individual', 'Small Racing Team'
+    timeline: str | None = None
     
-    def set_topic(self, topic_id: str):
-        # Find topic in loaded content
-        topic = next((item for item in COURSE_CONTENT if item["id"] == topic_id), None)
-        if topic:
-            self.current_topic_id = topic_id
-            self.current_topic_data = topic
-            return True
-        return False
+    def is_qualified(self):
+        """Returns True if we have the minimum info (Name + Email + Use Case)"""
+        return all([self.name, self.email, self.use_case])
 
 @dataclass
 class Userdata:
-    tutor_state: TutorState
-    agent_session: Optional[AgentSession] = None 
+    lead_profile: LeadProfile
 
 # ======================================================
-# 🛠️ TUTOR TOOLS
+# 🛠️ 3. SDR TOOLS (Functionality remains the same, adjusted context)
 # ======================================================
 
 @function_tool
-async def select_topic(
-    ctx: RunContext[Userdata], 
-    topic_id: Annotated[str, Field(description="The ID of the topic to study (e.g., 'dna', 'cell', 'nucleus')")]
-) -> str:
-    """📚 Selects a topic to study from the available list."""
-    state = ctx.userdata.tutor_state
-    success = state.set_topic(topic_id.lower())
-    
-    if success:
-        return f"Topic set to {state.current_topic_data['title']}. Ask the user if they want to 'Learn', be 'Quizzed', or 'Teach it back'."
-    else:
-        available = ", ".join([t["id"] for t in COURSE_CONTENT])
-        return f"Topic not found. Available topics are: {available}"
-
-@function_tool
-async def set_learning_mode(
-    ctx: RunContext[Userdata], 
-    mode: Annotated[str, Field(description="The mode to switch to: 'learn', 'quiz', or 'teach_back'")]
-) -> str:
-    """🔄 Switches the interaction mode and updates the agent's voice/persona."""
-    
-    # 1. Update State
-    state = ctx.userdata.tutor_state
-    state.mode = mode.lower()
-    
-    # 2. Switch Voice based on Mode
-    agent_session = ctx.userdata.agent_session 
-    
-    if agent_session:
-        if state.mode == "learn":
-            # 👨‍🏫 MATTHEW: The Lecturer
-            agent_session.tts.update_options(voice="en-US-matthew", style="Promo")
-            instruction = f"Mode: LEARN. Explain: {state.current_topic_data['summary']}"
-            
-        elif state.mode == "quiz":
-            # 👩‍🏫 ALICIA: The Examiner
-            agent_session.tts.update_options(voice="en-US-alicia", style="Conversational")
-            instruction = f"Mode: QUIZ. Ask this question: {state.current_topic_data['sample_question']}"
-            
-        elif state.mode == "teach_back":
-            # 👨‍🎓 KEN: The Student/Coach
-            agent_session.tts.update_options(voice="en-US-ken", style="Promo")
-            instruction = "Mode: TEACH_BACK. Ask the user to explain the concept to you as if YOU are the beginner."
-        else:
-            return "Invalid mode."
-    else:
-        instruction = "Voice switch failed (Session not found)."
-
-    print(f"🔄 SWITCHING MODE -> {state.mode.upper()}")
-    return f"Switched to {state.mode} mode. {instruction}"
-
-@function_tool
-async def evaluate_teaching(
+async def update_lead_profile(
     ctx: RunContext[Userdata],
-    user_explanation: Annotated[str, Field(description="The explanation given by the user during teach-back")]
+    name: Annotated[Optional[str], Field(description="Customer's name")] = None,
+    company: Annotated[Optional[str], Field(description="Customer's cycling club or current bike brand")] = None,
+    email: Annotated[Optional[str], Field(description="Customer's email address")] = None,
+    role: Annotated[Optional[str], Field(description="Customer's main riding category (e.g., weekend warrior, racer, commuter)")] = None,
+    use_case: Annotated[Optional[str], Field(description="What specific type of bike or service they are interested in (e.g., custom road bike, gravel wheels, performance coaching)")] = None,
+    team_size: Annotated[Optional[str], Field(description="Individual or size of their cycling team")] = None,
+    timeline: Annotated[Optional[str], Field(description="When they plan to acquire the bike/service (e.g., Spring 2026, Now, within 6 months)")] = None,
 ) -> str:
-    """📝 call this when the user has finished explaining a concept in 'teach_back' mode."""
-    print(f"📝 EVALUATING EXPLANATION: {user_explanation}")
-    return "Analyze the user's explanation. Give them a score out of 10 on accuracy and clarity, and correct any mistakes."
+    """
+    ✍️ Captures lead details provided by the user during conversation for Bikeya's custom products.
+    Only call this when the user explicitly provides information.
+    """
+    profile = ctx.userdata.lead_profile
+    
+    # Update only fields that are provided (not None)
+    if name: profile.name = name
+    if company: profile.company = company
+    if email: profile.email = email
+    if role: profile.role = role
+    if use_case: profile.use_case = use_case
+    if team_size: profile.team_size = team_size
+    if timeline: profile.timeline = timeline
+    
+    print(f"📝 UPDATING LEAD: {profile}")
+    return "Lead profile updated. Continue the conversation."
 
-# ======================================================
-# 🧠 AGENT DEFINITION
-# ======================================================
-
-class TutorAgent(Agent):
-    def __init__(self):
-        # Generate list of topics for the prompt
-        topic_list = ", ".join([f"{t['id']} ({t['title']})" for t in COURSE_CONTENT])
+@function_tool
+async def submit_lead_and_end(
+    ctx: RunContext[Userdata],
+) -> str:
+    """
+    💾 Saves the lead to the database and signals the end of the call.
+    Call this when the user says goodbye or 'that's all'.
+    """
+    profile = ctx.userdata.lead_profile
+    
+    # Save to JSON file (Append mode)
+    db_path = os.path.join(os.path.dirname(__file__), LEADS_FILE)
+    
+    entry = asdict(profile)
+    entry["timestamp"] = datetime.now().isoformat()
+    
+    # Read existing, append, write back (Simple JSON DB)
+    existing_data = []
+    if os.path.exists(db_path):
+        try:
+            with open(db_path, "r") as f:
+                existing_data = json.load(f)
+        except: pass
+    
+    existing_data.append(entry)
+    
+    with open(db_path, "w") as f:
+        json.dump(existing_data, f, indent=4)
         
+    print(f"✅ LEAD SAVED TO {LEADS_FILE}")
+    return f"Lead saved. Summarize the call for the user: 'Thanks {profile.name}, I have your info regarding a {profile.use_case} build. We will send the consultation schedule to {profile.email}. Happy cycling, goodbye!'"
+
+# ======================================================
+# 🧠 4. AGENT DEFINITION
+# ======================================================
+
+class SDRAgent(Agent):
+    def __init__(self):
         super().__init__(
             instructions=f"""
-            You are an Biology Tutor designed to help users master concepts like DNA and Cells.
+            You are 'Liam', a friendly and professional Custom Bike Consultant for 'Bikeya Company'.
             
-            📚 **AVAILABLE TOPICS:** {topic_list}
+            📘 **YOUR KNOWLEDGE BASE (FAQ):**
+            {STORE_FAQ_TEXT}
             
-            🔄 **YOU HAVE 3 MODES:**
-            1. **LEARN Mode (Voice: Matthew):** You explain the concept clearly using the summary data.
-            2. **QUIZ Mode (Voice: Alicia):** You ask the user a specific question to test knowledge.
-            3. **TEACH_BACK Mode (Voice: Ken):** YOU pretend to be a student. Ask the user to explain the concept to you.
+            🎯 **YOUR GOAL:**
+            1. Answer questions about our custom bikes, fittings, and services using the FAQ.
+            2. **QUALIFY THE LEAD:** Naturally ask for the following details during the chat:
+                - Name
+                - Company / Role (Riding style or club)
+                - Email
+                - What specific bike or service are they looking for? (Use Case)
+                - Timeline (When do they want the new bike?)
             
             ⚙️ **BEHAVIOR:**
-            - Start by asking what topic they want to study.
-            - Use the `set_learning_mode` tool immediately when the user asks to learn, take a quiz, or teach.
-            - In 'teach_back' mode, listen to their explanation and then use `evaluate_teaching` to give feedback.
+            - **Be Conversational:** Don't interrogate the user. Answer a question, THEN ask for a detail.
+            - *Example:* "Our custom fit session is $350. It ensures the perfect geometry. By the way, what kind of riding are you primarily focused on (road, gravel, or racing)?"
+            - **Capture Data:** Use `update_lead_profile` immediately when you hear new info.
+            - **Closing:** When the user is done, use `submit_lead_and_end`.
+            
+            🚫 **RESTRICTIONS:**
+            - If you don't know an answer, say "I'll check with our Master Builder and email you the details." (Don't hallucinate prices).
             """,
-            tools=[select_topic, set_learning_mode, evaluate_teaching],
+            tools=[update_lead_profile, submit_lead_and_end],
         )
 
 # ======================================================
@@ -222,19 +206,19 @@ def prewarm(proc: JobProcess):
 async def entrypoint(ctx: JobContext):
     ctx.log_context_fields = {"room": ctx.room.name}
 
-
-
+    print("\n" + "🚴‍♂️" * 25)
+    print("🚀 STARTING BIKEYA CONSULTANT SESSION")
     
     # 1. Initialize State
-    userdata = Userdata(tutor_state=TutorState())
+    userdata = Userdata(lead_profile=LeadProfile())
 
     # 2. Setup Agent
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
         llm=google.LLM(model="gemini-2.5-flash"),
         tts=murf.TTS(
-            voice="en-US-matthew", 
-            style="Promo",        
+            voice="en-US-alicia", # Warm, professional male voice for a consultant
+            style="Conversational",
             text_pacing=True,
         ),
         turn_detection=MultilingualModel(),
@@ -242,12 +226,9 @@ async def entrypoint(ctx: JobContext):
         userdata=userdata,
     )
     
-    # 3. Store session in userdata for tools to access
-    userdata.agent_session = session
-    
-    # 4. Start
+    # 3. Start
     await session.start(
-        agent=TutorAgent(),
+        agent=SDRAgent(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC()

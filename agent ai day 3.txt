@@ -1,0 +1,183 @@
+# Imports needed for Day 4
+import os
+import json
+import random
+from typing import Annotated, Literal
+from pydantic import Field
+
+# ... (Existing LiveKit, Murf, Google Imports)
+
+# -------------------------------------------------------------
+# CONTENT LOADING
+# -------------------------------------------------------------
+def load_content():
+    # Adjust the path to correctly locate the JSON file
+    base_dir = os.path.dirname(__file__)
+    backend_dir = os.path.abspath(os.path.join(base_dir, ".."))
+    content_path = os.path.join(backend_dir, "shared-data", "day4_tutor_content.json")
+    
+    if not os.path.exists(content_path):
+        logger.error(f"Content file not found at: {content_path}")
+        return []
+        
+    with open(content_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+COURSE_CONTENT = load_content()
+CONCEPT_IDS = [c['id'] for c in COURSE_CONTENT]
+ConceptID = Literal[tuple(CONCEPT_IDS)]
+
+# -------------------------------------------------------------
+# MODE AGENTS (The Tutors)
+# -------------------------------------------------------------
+
+class LearnAgent(Agent):
+    """The agent that explains a concept."""
+    def __init__(self, concept: str):
+        super().__init__(
+            instructions=f"""You are 'Matthew', a patient and technical instructor. Your task is to clearly and concisely teach the user about the concept of '{concept['title']}'. Your current mode is 'Learn'.
+            
+            1. Start by welcoming the user and presenting the summary of the concept.
+            2. After presenting the summary, ask the user if they have any questions.
+            3. Always remain in the Learn mode until the user explicitly asks to switch modes or concepts.
+            4. The core explanation is: '{concept['summary']}'""",
+            # Matthew's Voice
+            tts_options=murf.TTS(voice="en-US-matthew", style="Narrative", text_pacing=True)
+        )
+        self.concept = concept
+
+class QuizAgent(Agent):
+    """The agent that quizzes the user on the concept."""
+    def __init__(self, concept: str):
+        super().__init__(
+            instructions=f"""You are 'Alicia', a strict but encouraging quizmaster. Your current mode is 'Quiz'. Your task is to quiz the user on the concept of '{concept['title']}'.
+            
+            1. Start by asking the user the quiz question: '{concept['sample_question']}'.
+            2. Listen for the user's answer. Give brief feedback (e.g., "That's a strong answer!") and then ask the user if they want to try another question or switch modes.
+            3. Always remain in the Quiz mode until the user explicitly asks to switch modes or concepts.""",
+            # Alicia's Voice
+            tts_options=murf.TTS(voice="en-US-alicia", style="Conversational", text_pacing=True)
+        )
+        self.concept = concept
+
+class TeachBackAgent(Agent):
+    """The agent that asks the user to explain the concept back."""
+    def __init__(self, concept: str):
+        super().__init__(
+            instructions=f"""You are 'Ken', an active listener and evaluator. Your current mode is 'Teach Back'. Your task is to have the user explain the concept of '{concept['title']}' back to you.
+            
+            1. Start by prompting the user with the instruction: '{concept['prompt_to_teach']}'.
+            2. Listen to the user's explanation.
+            3. Provide basic qualitative feedback (e.g., "That was a very clear explanation of the core idea," or "You missed the part about the condition.")
+            4. Always remain in the Teach Back mode until the user explicitly asks to switch modes or concepts.""",
+            # Ken's Voice
+            tts_options=murf.TTS(voice="en-US-ken", style="Presentation", text_pacing=True)
+        )
+        self.concept = concept
+
+# -------------------------------------------------------------
+# CONTROL AGENT (The Handoff Manager)
+# -------------------------------------------------------------
+
+class ControlAgent(Agent):
+    """The main agent that directs traffic and handles handoffs."""
+    def __init__(self):
+        super().__init__(
+            instructions="""You are the main coordinator, responsible for greeting the user, selecting the starting concept (Variables) and mode, and managing the handoff.
+            
+            1. Greet the user and ask them to choose a mode: 'learn', 'quiz', or 'teach back'.
+            2. Use the 'set_mode' tool to initiate the handoff once a mode is chosen.
+            3. If the user asks to switch modes at any point, use the 'set_mode' tool again.
+            4. The default concept to start with is 'variables'.""",
+            # Control Agent uses a neutral voice
+            tts_options=murf.TTS(voice="en-US-natalie", style="Conversational", text_pacing=True)
+        )
+        self.current_concept_id = "variables"
+        self.concept_data = next(c for c in COURSE_CONTENT if c['id'] == self.current_concept_id)
+
+
+    @function_tool
+    async def set_mode(
+        self,
+        context: RunContext,
+        new_mode: Annotated[
+            Literal["learn", "quiz", "teach_back"],
+            Field(description="The learning mode to switch to."),
+        ],
+        concept_id: Annotated[
+            Optional[ConceptID],
+            Field(description="Optional concept to switch to. Defaults to 'variables' if not provided."),
+        ] = None,
+    ) -> str:
+        """Use this tool to switch the user to a new learning mode and/or concept."""
+        
+        # 1. Update Concept Data if provided
+        if concept_id:
+            self.current_concept_id = concept_id
+            self.concept_data = next(c for c in COURSE_CONTENT if c['id'] == concept_id)
+        
+        # 2. Select the correct Agent class
+        agent_map = {
+            "learn": LearnAgent,
+            "quiz": QuizAgent,
+            "teach_back": TeachBackAgent,
+        }
+        
+        new_agent_class = agent_map.get(new_mode)
+
+        if not new_agent_class:
+            return "I don't recognize that mode. Please choose 'learn', 'quiz', or 'teach back'."
+
+        # 3. Perform the Handoff (The core of Day 4!)
+        new_agent = new_agent_class(concept=self.concept_data)
+        
+        # The handoff will preserve context like the STT/LLM/TTS setup
+        await context.handoff(agent=new_agent)
+
+        return f"Switching you to the {new_mode.replace('_', ' ')} module for '{self.concept_data['title']}' now. Please listen for the new tutor's voice!"
+
+# -------------------------------------------------------------
+# ENTRYPOINT & INITIALIZATION (Modify the original entrypoint)
+# -------------------------------------------------------------
+
+# ... (Keep your prewarm function)
+
+async def entrypoint(ctx: JobContext):
+    ctx.log_context_fields = {"room": ctx.room.name}
+    
+    # 1. Setup Agent Pipeline
+    session = AgentSession(
+        stt=deepgram.STT(model="nova-3"),
+        llm=google.LLM(model="gemini-2.5-flash"),
+        
+        # TTS is handled by the specific agents, but the session needs a default
+        tts=murf.TTS(
+            voice="en-US-natalie", 
+            style="Conversational",
+            text_pacing=True
+        ),
+        
+        turn_detection=MultilingualModel(),
+        vad=ctx.proc.userdata["vad"],
+    )
+
+    # 2. Start Session with the ControlAgent
+    control_agent = ControlAgent()
+    await session.start(
+        agent=control_agent,
+        room=ctx.room,
+        room_input_options=RoomInputOptions(
+            noise_cancellation=noise_cancellation.BVC(),
+        ),
+    )
+
+    # 3. Start the conversation with the Control Agent's greeting
+    await session.respond(
+        f"Hello! Welcome to the Teach-the-Tutor learning system. We're starting with the concept of '{control_agent.concept_data['title']}'. Which mode would you like to start with: 'learn', 'quiz', or 'teach back'?"
+    )
+
+    await ctx.connect()
+
+
+if __name__ == "__main__":
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, prewarm_fnc=prewarm))

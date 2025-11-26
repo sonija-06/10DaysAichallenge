@@ -1,0 +1,52 @@
+[
+    {
+        "name": "Sarah Connor",
+        "company": "Tri-State Cycling Club",
+        "email": "sarah.c@emailservice.com",
+        "role": "Amateur Racer",
+        "use_case": "Aero road bike build for next season's crit series.",
+        "team_size": "Individual",
+        "timeline": "Within 3 months",
+        "timestamp": "2025-11-26T14:00:00.000000"
+    },
+    {
+        "name": "John Smith",
+        "company": "Adventure Seekers Inc.",
+        "email": "john.smith@outdoors.net",
+        "role": "Weekend Rider",
+        "use_case": "Custom gravel bike for long-distance bikepacking trips.",
+        "team_size": "Small Group (3 riders)",
+        "timeline": "Ready to order now",
+        "timestamp": "2025-11-26T14:01:30.000000"
+    },
+    {
+        "name": "Alex",
+        "company": "Mountain Goat Cycling Club",
+        "email": "a a at a a dot com.",
+        "role": "Weekend rider",
+        "use_case": "Custom gravel bike for bikepacking",
+        "team_size": null,
+        "timeline": "within 6 months",
+        "timestamp": "2025-11-26T19:21:38.642266"
+    },
+    {
+        "name": "Sam",
+        "company": "MDE",
+        "email": "sam sam dot com",
+        "role": "corporate fitness challenge participant",
+        "use_case": "Road bikes for corporate fitness challenge",
+        "team_size": "fifteen peoples",
+        "timeline": "next March",
+        "timestamp": "2025-11-26T19:31:52.433184"
+    },
+    {
+        "name": "Sam",
+        "company": null,
+        "email": "Alex@directAlex.net",
+        "role": "weekend warrior",
+        "use_case": "lightweight road bike",
+        "team_size": null,
+        "timeline": "end of the year",
+        "timestamp": "2025-11-26T19:38:41.574246"
+    }
+]

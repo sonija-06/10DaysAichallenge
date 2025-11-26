@@ -1,0 +1,32 @@
+{
+  "company_name": "Bykea Corporate",
+  "overview": "Bykea is Pakistan's leading on-demand transport and logistics platform. Our Corporate Services division helps businesses manage logistics, employee travel, and cash-on-delivery (COD) efficiently. We offer a dedicated web portal, API integration for e-commerce, and monthly invoicing for seamless operations in Karachi, Lahore, and Islamabad.",
+  "pricing": {
+    "delivery_rates": "Base fare starts from PKR 100 within city limits. Dynamic pricing applies based on distance and peak hours.",
+    "cash_on_delivery": "Standard COD remittance fee is 1.5% of the collected amount or a flat fee, depending on volume.",
+    "subscription": "No monthly subscription fee for the Corporate Portal access.",
+    "bulk_discounts": "Volume-based discounts available for businesses with over 500 deliveries per month."
+  },
+  "faqs": [
+    {
+      "question": "Which cities do you operate in?",
+      "answer": "We currently operate in Karachi, Lahore, Islamabad, and Rawalpindi."
+    },
+    {
+      "question": "Do you offer API integration?",
+      "answer": "Yes, we provide open APIs that allow you to integrate Bykea booking and tracking directly into your website or app."
+    },
+    {
+      "question": "How does Cash on Delivery remittance work?",
+      "answer": "Riders collect cash from your customers upon delivery. The amount is remitted to your bank account within 24-48 hours (T+1 or T+2 cycle)."
+    },
+    {
+      "question": "Can I track my riders?",
+      "answer": "Yes, our Corporate Dashboard provides real-time tracking for all your active rides and deliveries."
+    },
+    {
+      "question": "Is there insurance for parcels?",
+      "answer": "Basic insurance is included. For high-value items, we offer enhanced insurance coverage upon request."
+    }
+  ]
+}
